@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Civic Sathi - My Account</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <style>
+        .profile-photo { width: 128px; height: 128px; object-fit: cover; border-radius: 50%; border: 4px solid #6366f1; }
+        .notification { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; opacity: 0; visibility: hidden; transition: all 0.3s; z-index: 1000; }
+        .notification.show { opacity: 1; visibility: visible; transform: translate(-50%, -10px); }
+        .notification.success { background-color: #28a745; }
+        .notification.error { background-color: #dc3545; }
+        #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 4000; justify-content: center; align-items: center; }
+        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #6366f1; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 3000; justify-content: center; align-items: center; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 0.5rem; text-align: center; }
+        #imageToCrop { display: block; max-width: 100%; }
+        .verified-badge { background-color: #dcfce7; color: #166534; }
+        .unverified-badge { background-color: #fee2e2; color: #991b1b; }
+        .badge-icon { width: 64px; height: 64px; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <header id="navbar-placeholder"></header>
+
+    <div class="container mx-auto p-4 sm:p-18 pt-24">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-3xl mx-auto">
+            
+            <div id="accountDetails" class="p-6 bg-gray-50 rounded-lg shadow-inner min-h-[150px]">
+                 <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
+                    <img src="https://via.placeholder.com/128" alt="Profile Photo" class="profile-photo" id="displayProfileImage">
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold text-gray-900" id="displayName"></h3>
+                        <p class="text-sm text-gray-500 mb-2" id="displayUserId"></p>
+                        <p class="text-gray-600" id="displayContact"></p>
+                        <div id="verificationStatusContainer" class="mt-2 text-sm"></div>
+                        <p class="text-gray-600 mt-2" id="displayAddress"></p>
+                        <div class="mt-4 flex space-x-2">
+                            <button id="editProfileBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md">Edit Profile</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-gray-50 rounded-lg shadow-inner hidden mt-6" id="editProfileFormContainer">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Edit Profile</h3>
+                <form id="editProfileForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="editName" class="block text-sm font-medium text-gray-700">Name</label>
+                            <input type="text" id="editName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="editEmail" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="editEmail" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="editPhone" class="block text-sm font-medium text-gray-700">Phone</label>
+                            <input type="text" id="editPhone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="editPincode" class="block text-sm font-medium text-gray-700">Pincode</label>
+                            <input type="text" id="editPincode" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="editAddress" class="block text-sm font-medium text-gray-700">Address</label>
+                        <input type="text" id="editAddress" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label for="editProfilePhoto" class="block text-sm font-medium text-gray-700">Update Profile Photo</label>
+                        <input type="file" id="editProfilePhoto" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        <p class="text-xs text-gray-500 mt-1">Choose an image then crop it when prompted.</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button type="button" id="cancelEditBtn" class="w-full flex justify-center py-2 px-4 border rounded-md shadow-sm text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="mt-6 p-6 bg-gray-50 rounded-lg shadow-inner">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Your Impact</h3>
+                <div id="impactDetails" class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-3xl font-bold text-indigo-600" id="reportsCount">0</p>
+                        <p class="text-sm text-gray-600">Total Reports</p>
+                    </div>
+                    <div>
+                        <p class="text-3xl font-bold text-indigo-600" id="pointsCount">0</p>
+                        <p class="text-sm text-gray-600">Points</p>
+                    </div>
+                    <div>
+                        <p class="text-3xl font-bold text-indigo-600" id="levelDisplay">Level 1</p>
+                        <p class="text-sm text-gray-600" id="levelTitle">New Reporter</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 p-6 bg-gray-50 rounded-lg shadow-inner">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Badges Earned</h3>
+                <div id="badgesContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 text-center">
+                    <p id="noBadgesMessage" class="col-span-full text-gray-500">No badges earned yet. Keep contributing!</p>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 justify-center">
+                <a href="report.html" class="inline-block py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Submit a New Report</a>
+                <a href="my-reports.html" class="inline-block py-2 px-6 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">View All My Reports</a>
+                <a href="index.html" class="inline-block py-2 px-6 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Go to Homepage</a>
+            </div>
+        </div>
+    </div>
+    
+    <div id="otpModal" class="modal-overlay">
+        <div class="modal-content w-full max-w-sm">
+            <h3 class="text-xl font-bold mb-4">Verify Your Phone</h3>
+            <p class="text-gray-600 mb-4">Enter the 6-digit code we sent to your phone.</p>
+            <form id="otpForm">
+                <input type="text" id="otpInput" class="w-full px-3 py-2 border rounded-md text-center tracking-[.5em]" maxlength="6" required>
+                <div class="flex justify-center space-x-4 mt-4">
+                    <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700">Verify</button>
+                    <button type="button" id="cancelOtpBtn" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="cropperModal" class="modal-overlay">
+        <div class="modal-content w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4">Crop Your Image</h3>
+            <div class="max-h-[60vh]">
+                <img id="imageToCrop" src="" alt="Image to crop">
+            </div>
+            <div class="flex justify-center space-x-4 mt-4">
+                <button id="cropButton" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700">Crop & Save</button>
+                <button id="cancelCropButton" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div id="loader"><div class="spinner"></div></div>
+    <div id="notification" class="notification"></div>
+
+    <script>
+    const API_URL = "";
+    const loader = document.getElementById("loader");
+    const notification = document.getElementById("notification");
+    const accountDetailsDiv = document.getElementById("accountDetails");
+    const editProfileFormContainer = document.getElementById("editProfileFormContainer");
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const profilePhotoInput = document.getElementById('editProfilePhoto');
+    const otpModal = document.getElementById('otpModal');
+    const cropperModal = document.getElementById('cropperModal');
+    const imageToCrop = document.getElementById('imageToCrop');
+    let currentUserData = null;
+    let cropper = null;
+    let croppedImageBlob = null; 
+
+    function getLevel(points) {
+        if (points >= 500) return { level: 5, title: 'City Hero' };
+        if (points >= 300) return { level: 4, title: 'Area Expert' };
+        if (points >= 150) return { level: 3, title: 'Civic Guardian' };
+        if (points >= 50) return { level: 2, title: 'Community Scout' };
+        return { level: 1, title: 'New Reporter' };
+    }
+
+    async function fetchAndShowProfile() {
+        loader.style.display = 'flex';
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+            return;
+        }
+        try {
+            const [profileRes, reportsRes, badgesRes] = await Promise.all([
+                fetch(`${API_URL}/user/profile`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_URL}/reports/my-reports`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_URL}/user/badges`, { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+
+            if (profileRes.status === 401) {
+                showNotification('Session expired. Please login again.', 'error');
+                localStorage.removeItem('token');
+                setTimeout(() => { window.location.href = `login.html`; }, 1500);
+                return;
+            }
+
+            if (!profileRes.ok) throw new Error('Could not load profile.');
+
+            const user = await profileRes.json();
+            displayAccountDetails(user);
+            
+            const userLevel = getLevel(user.points);
+            document.getElementById('pointsCount').textContent = user.points || 0;
+            document.getElementById('levelDisplay').textContent = `Level ${userLevel.level}`;
+            document.getElementById('levelTitle').textContent = userLevel.title;
+
+            const reports = reportsRes.ok ? await reportsRes.json() : [];
+            document.getElementById('reportsCount').textContent = reports.length;
+            
+            const badges = badgesRes.ok ? await badgesRes.json() : [];
+            displayBadges(badges);
+
+        } catch (error) {
+            showNotification('Could not load profile data.', 'error');
+            console.error(error);
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+    
+    function displayBadges(badges) {
+        const badgesContainer = document.getElementById('badgesContainer');
+        const noBadgesMessage = document.getElementById('noBadgesMessage');
+        
+        if (badges.length === 0) {
+            noBadgesMessage.style.display = 'block';
+            badgesContainer.innerHTML = '';
+            badgesContainer.appendChild(noBadgesMessage);
+        } else {
+            noBadgesMessage.style.display = 'none';
+            badgesContainer.innerHTML = badges.map(badge => `
+                <div class="flex flex-col items-center group" title="${badge.description}">
+                    <img src="${badge.icon_url || 'https://via.placeholder.com/64'}" alt="${badge.name}" class="badge-icon mb-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <p class="text-xs font-semibold text-gray-700">${badge.name}</p>
+                </div>
+            `).join('');
+        }
+    }
+    
+    function displayAccountDetails(user) {
+        currentUserData = user;
+        document.getElementById('displayProfileImage').src = safeUrl(user.profile_photo);
+        document.getElementById('displayName').textContent = user.name || '';
+        document.getElementById('displayUserId').textContent = `User ID: ${user.user_id || ''}`;
+        document.getElementById('displayContact').textContent = `${user.email || ''} • ${user.phone || ''}`;
+        let addressText = user.address || '';
+        if (user.pincode) { addressText += ` • ${user.pincode}`; }
+        document.getElementById('displayAddress').textContent = addressText;
+
+        const verificationContainer = document.getElementById('verificationStatusContainer');
+        if (user.is_phone_verified) {
+            verificationContainer.innerHTML = `<span class="px-2 py-1 text-xs font-medium rounded-full verified-badge">Phone Verified</span>`;
+        } else {
+            verificationContainer.innerHTML = `
+                <span class="px-2 py-1 text-xs font-medium rounded-full unverified-badge">Phone Not Verified</span>
+                <button id="verifyPhoneBtn" class="ml-2 text-sm text-indigo-600 hover:underline">Verify Now</button>
+            `;
+            document.getElementById('verifyPhoneBtn').addEventListener('click', handleSendOtp);
+        }
+        
+        const editBtn = document.getElementById('editProfileBtn');
+        if (editBtn) { editBtn.addEventListener('click', showEditView); }
+    }
+    
+    function showNotification(message, type = 'success') {
+        notification.textContent = message;
+        notification.className = `notification ${type} show`;
+        setTimeout(() => { notification.classList.remove('show'); }, 3000);
+    }
+
+    function safeUrl(path) {
+        if (!path) return 'https://via.placeholder.com/128';
+        return `${API_URL}/uploads/${path}`;
+    }
+
+    function showEditView() {
+        document.getElementById('editName').value = currentUserData.name || '';
+        document.getElementById('editEmail').value = currentUserData.email || '';
+        document.getElementById('editPhone').value = currentUserData.phone || '';
+        document.getElementById('editPincode').value = currentUserData.pincode || '';
+        document.getElementById('editAddress').value = currentUserData.address || '';
+        croppedImageBlob = null;
+        profilePhotoInput.value = '';
+        accountDetailsDiv.classList.add('hidden');
+        editProfileFormContainer.classList.remove('hidden');
+    }
+
+    function showDetailsView() {
+        editProfileFormContainer.classList.add('hidden');
+        accountDetailsDiv.classList.remove('hidden');
+    }
+
+    async function handleSendOtp() {
+        loader.style.display = 'flex';
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/send-phone-otp`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Could not send OTP.');
+            showNotification(data.message, 'success');
+            otpModal.style.display = 'flex';
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+    document.getElementById('otpForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loader.style.display = 'flex';
+        const otp = document.getElementById('otpInput').value;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/verify-phone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ otp })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Verification failed.');
+            showNotification(data.message, 'success');
+            otpModal.style.display = 'none';
+            document.getElementById('otpInput').value = '';
+            fetchAndShowProfile();
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            loader.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('cancelOtpBtn').addEventListener('click', () => {
+        otpModal.style.display = 'none';
+    });
+
+    profilePhotoInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        imageToCrop.src = url;
+        cropperModal.style.display = 'flex';
+        imageToCrop.onload = () => {
+            if (cropper) { cropper.destroy(); cropper = null; }
+            cropper = new Cropper(imageToCrop, { aspectRatio: 1, viewMode: 1, background: false, autoCropArea: 1 });
+        };
+    });
+
+    const cropButton = document.getElementById('cropButton');
+    const cancelCropButton = document.getElementById('cancelCropButton');
+
+    cropButton.addEventListener('click', () => {
+        if (!cropper) return;
+        cropper.getCroppedCanvas({ width: 512, height: 512 }).toBlob((blob) => {
+            if (!blob) return;
+            croppedImageBlob = blob;
+            cropperModal.style.display = 'none';
+            if (cropper) { cropper.destroy(); cropper = null; }
+            showNotification('Cropped image ready. Save profile to upload.', 'success');
+        }, 'image/jpeg', 0.9);
+    });
+
+    cancelCropButton.addEventListener('click', () => {
+        cropperModal.style.display = 'none';
+        if (cropper) { cropper.destroy(); cropper = null; }
+    });
+
+    cancelEditBtn.addEventListener('click', () => {
+        showDetailsView();
+    });
+
+    document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loader.style.display = 'flex';
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('name', document.getElementById('editName').value);
+            formData.append('email', document.getElementById('editEmail').value);
+            formData.append('phone', document.getElementById('editPhone').value);
+            formData.append('pincode', document.getElementById('editPincode').value || '');
+            formData.append('address', document.getElementById('editAddress').value || '');
+            if (croppedImageBlob) {
+                formData.append('profile_photo', croppedImageBlob, 'profile.jpg');
+            }
+
+            const res = await fetch(`${API_URL}/update-profile`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Could not update profile');
+            showNotification(data.message || 'Profile updated', 'success');
+            await fetchAndShowProfile();
+            showDetailsView();
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            loader.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', fetchAndShowProfile);
+    </script>
+    <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<nav class="bg-gray-800 text-white shadow-lg fixed top-0 left-0 w-full" style="z-index: 2000;">
+  <div class="container mx-auto px-6 py-3 flex justify-between items-center">
+    <a href="index.html" class="text-xl font-bold text-white">Civic Sathi</a>
+
+    <div class="hidden md:flex items-center space-x-4">
+      <a href="index.html" class="py-2 px-3 hover:bg-gray-700 rounded">Home</a>
+      <a href="mapper.html" class="py-2 px-3 hover:bg-gray-700 rounded">Issue Mapper</a>
+      <a href="leaderboard.html" class="py-2 px-3 hover:bg-gray-700 rounded">Leader board</a>
+      <a id="nav-my-account" href="account.html" class="py-2 px-3 hover:bg-gray-700 rounded hidden">My Account</a>
+      <div id="nav-login-register" class="hidden">
+        <a href="login.html" class="py-2 px-3 bg-indigo-500 hover:bg-indigo-600 rounded">Login</a>
+        <a href="register.html" class="py-2 px-3 hover:bg-gray-700 rounded">Register</a>
+      </div>
+      <button id="nav-logout" class="py-2 px-3 bg-red-500 hover:bg-red-600 rounded hidden">Logout</button>
+    </div>
+
+    <div class="md:hidden">
+      <button id="hamburger-button" class="text-white focus:outline-none">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="mobile-menu" class="hidden md:hidden">
+    <a href="index.html" class="block py-2 px-4 text-sm hover:bg-gray-700">Home</a>
+    <a href="mapper.html" class="block py-2 px-4 text-sm hover:bg-gray-700">Issue Mapper</a>
+    <a href="leaderboard.html" class="block py-2 px-4 text-sm hover:bg-gray-700">Leader board</a>
+    <a id="nav-my-account-mobile" href="account.html" class="block py-2 px-4 text-sm hover:bg-gray-700 hidden">My Account</a>
+    <div id="nav-login-register-mobile" class="hidden px-4 py-2">
+      <a href="login.html" class="block text-center py-2 px-3 bg-indigo-500 hover:bg-indigo-600 rounded mb-2">Login</a>
+      <a href="register.html" class="block text-center py-2 px-3 hover:bg-gray-700 rounded">Register</a>
+    </div>
+    <button id="nav-logout-mobile" class="w-full text-left py-2 px-4 text-sm bg-red-500 hover:bg-red-600 hidden">Logout</button>
+  </div>
+</nav>

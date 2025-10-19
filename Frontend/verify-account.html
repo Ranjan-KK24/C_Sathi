@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Civic Sathi - Verify Your Account</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-gray-100">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg text-center">
+
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2 text-gray-800">Please Verify Your Email</h2>
+            <p class="text-gray-600">We've sent a verification link to <strong id="userEmail" class="text-indigo-600">your email</strong>.</p>
+            <p class="text-gray-600 mt-2">Please click the link in the email to activate your account.</p>
+        </div>
+
+        <hr class="my-6">
+
+        <div id="phoneVerificationSection">
+            <h3 class="text-2xl font-bold mb-2 text-gray-800">Verify Your Phone Number</h3>
+            <p class="text-gray-600 mb-4">You can do this now or later from your profile.</p>
+            <div id="phoneStep1">
+                <button id="sendOtpButton" class="w-full max-w-xs mx-auto py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700">
+                    Send Verification Code (OTP)
+                </button>
+            </div>
+            <div id="phoneStep2" class="hidden mt-4 max-w-xs mx-auto">
+                <label for="otpInput" class="block text-sm font-medium text-gray-700 text-left">Enter the 6-digit code we sent you:</label>
+                <input type="text" id="otpInput" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="123456">
+                <button id="verifyOtpButton" class="w-full mt-2 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700">
+                    Verify Code
+                </button>
+            </div>
+        </div>
+
+        <div id="phoneMessage" class="mt-4 text-center text-sm font-medium"></div>
+
+        <div class="mt-8 text-center text-sm">
+            <a href="login.html" class="font-medium text-indigo-600 hover:text-indigo-500">Go to Login Page</a>
+        </div>
+    </div>
+
+    <script>
+        // Display the user's email from the URL
+        const userEmailElement = document.getElementById('userEmail');
+        const params = new URLSearchParams(window.location.search);
+        const email = params.get('email');
+        if (email) {
+            userEmailElement.textContent = email;
+        }
+
+        // Phone Verification Placeholder Logic
+        const sendOtpButton = document.getElementById('sendOtpButton');
+        sendOtpButton.addEventListener('click', () => {
+            const phoneMessage = document.getElementById('phoneMessage');
+            phoneMessage.innerHTML = `<span class="text-gray-600">Please verify your email first and log in to verify your phone number from your profile.</span>`;
+        });
+    </script>
+</body>
+</html>

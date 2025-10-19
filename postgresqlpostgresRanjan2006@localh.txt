@@ -1,0 +1,1 @@
+postgresql://postgres:Ranjan2006@localhost:5432/civic_sathi_db

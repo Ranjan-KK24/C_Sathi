@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Civic Sathi - Issue Mapper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    #map { height: 600px; border-radius: 0.5rem; border: 1px solid #d1d5db; }
+    .action-btn { 
+      display: inline-block; background: #4f46e5; color: #fff; padding: 8px 16px; margin-top: 8px; 
+      border-radius: 6px; font-size: 0.875rem; text-align: center; cursor: pointer;
+      transition: background-color 0.2s; border: none;
+    }
+    .action-btn:hover { background: #4338ca; }
+    .notification { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; opacity: 0; visibility: hidden; transition: all 0.3s; z-index: 1000; }
+    .notification.show { opacity: 1; visibility: visible; transform: translate(-50%, -10px); }
+    .notification.success { background-color: #28a745; }
+    .notification.error { background-color: #dc3545; }
+    #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 2000; justify-content: center; align-items: center; }
+    .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #6366f1; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .map-container { position: relative; }
+    .filter-overlay {
+      position: absolute; top: 10px; right: 10px; z-index: 1000; background: linear-gradient(to bottom right, #f5f3ff, #ede9fe);
+      border: 1px solid #c4b5fd; border-radius: 0.75rem; box-shadow: 0 6px 16px rgba(139, 92, 246, 0.25);
+      padding: 1rem; width: 14rem; backdrop-filter: blur(6px);
+    }
+    .filter-overlay label { color: #6d28d9; font-weight: 600; }
+    .filter-overlay select {
+      appearance: none; background-color: #f3f0ff; border: 1px solid #c4b5fd; border-radius: 0.75rem;
+      color: #4c1d95; padding: 0.5rem 2.5rem 0.5rem 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%237c3aed' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1rem;
+    }
+    .filter-overlay select:hover { background-color: #ede9fe; border-color: #a78bfa; }
+    .filter-overlay select:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35); outline: none; }
+    .leaflet-popup-content-wrapper { width: 320px; }
+    .leaflet-popup-content { max-height: 250px; overflow-y: auto; }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <header id="navbar-placeholder"></header>
+
+  <div class="container mx-auto px-4 py-12 md:py-24">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center">Community Issue Mapper</h2>
+    <div class="map-container">
+      <div class="filter-overlay flex flex-col gap-4">
+          <div>
+              <label for="daysFilter" class="block text-sm font-medium">Timeframe</label>
+              <select id="daysFilter">
+                  <option value="all" selected>All Time</option>
+                  <option value="7">Last 7 Days</option>
+                  <option value="14">Last 14 Days</option>
+                  <option value="30">Last 30 Days</option>
+                  <option value="60">Last 60 Days</option>
+              </select>
+          </div>
+          <div>
+              <label for="statusFilter" class="block text-sm font-medium">Status</label>
+              <select id="statusFilter">
+                  <option value="all" selected>All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="in progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+              </select>
+          </div>
+      </div>
+      <div id="map" class="shadow-lg"></div>
+    </div>
+  </div>
+
+  <div id="loader"><div class="spinner"></div></div>
+  <div id="notification" class="notification"></div>
+
+  <script>
+    const API_URL = "";
+    const loader = document.getElementById("loader");
+    const notification = document.getElementById("notification");
+    
+    let map, markersLayer;
+    let allReports = [];
+
+    function showNotification(message, type = 'success') {
+      notification.textContent = message;
+      notification.className = `notification ${type} show`;
+      setTimeout(() => { notification.classList.remove('show'); }, 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      map = L.map('map').setView([20.4625, 85.8830], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+      fetchAllReports();
+
+      document.getElementById('daysFilter').addEventListener('change', applyFilters);
+      document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    });
+
+    async function fetchAllReports() {
+        loader.style.display = 'flex';
+        try {
+            const res = await fetch(`${API_URL}/reports`);
+            const reports = await res.json();
+            if (!res.ok) throw new Error(reports.error || 'Failed to fetch reports');
+            
+            allReports = reports;
+            applyFilters();
+        } catch (error) {
+            console.error(error);
+            showNotification(error.message, 'error');
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+    function applyFilters() {
+        const days = document.getElementById('daysFilter').value;
+        const status = document.getElementById('statusFilter').value;
+
+        let filteredReports = allReports.filter(report => {
+            if (days !== 'all') {
+                const reportDate = new Date(report.created_at);
+                const cutoffDate = new Date();
+                cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+                if (reportDate < cutoffDate) return false;
+            }
+            if (status !== 'all' && report.status !== status) return false;
+            return true;
+        });
+        
+        markersLayer.clearLayers();
+        filteredReports.forEach(report => {
+            if (!report.lat || !report.lon) return;
+            const icon = getMarkerIcon(report.status || 'pending');
+            const marker = L.marker([report.lat, report.lon], { icon }).addTo(markersLayer);
+            marker.bindPopup(createPopupContent(report));
+        });
+    }
+
+    function getMarkerIcon(status) {
+      let color = 'fbbf24'; 
+      if (status === 'resolved') color = '34d399';
+      if (status === 'in progress') color = '60a5fa';
+      const iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#${color}" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+      return L.divIcon({ html: iconHtml, className: 'dummy', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32] });
+    }
+    
+    function createPopupContent(report) {
+        const token = localStorage.getItem('token');
+        const container = document.createElement('div');
+        container.className = 'p-1';
+
+        const title = document.createElement('h3');
+        title.className = 'font-semibold text-lg';
+        title.textContent = report.issue_type;
+        container.appendChild(title);
+
+        if (report.description) {
+            const description = document.createElement('p');
+            description.className = 'text-gray-700';
+            description.textContent = report.description;
+            container.appendChild(description);
+        }
+        if (report.landmark) {
+            const landmark = document.createElement('p');
+            landmark.className = 'text-sm text-gray-500 mt-2';
+            landmark.textContent = `Landmark: ${report.landmark}`;
+            container.appendChild(landmark);
+        }
+        const status = document.createElement('p');
+        status.className = 'text-sm';
+        status.innerHTML = `Status: <span class="font-medium capitalize">${report.status || 'pending'}</span>`;
+        container.appendChild(status);
+
+        const upvotes = document.createElement('p');
+        upvotes.className = 'text-sm font-semibold text-indigo-600';
+        upvotes.textContent = `Upvotes: ${report.upvotes}`;
+        container.appendChild(upvotes);
+
+        if (report.media) {
+            const img = document.createElement('img');
+            img.src = `${API_URL}/uploads/${report.media}`;
+            img.alt = 'issue photo';
+            img.className = 'mt-2 rounded-md w-48 object-cover';
+            container.appendChild(img);
+        }
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'mt-2';
+        let actionHtml = '';
+
+        if (token) {
+            if (report.status === 'pending') {
+                actionHtml = `<button class="action-btn" onclick="upvoteReport(${report.id})">Upvote</button>`;
+            }
+        } else {
+            const nextUrl = encodeURIComponent(window.location.href);
+            actionHtml = `<a href="login.html?next=${nextUrl}" class="action-btn block text-center">Login to Upvote</a>`;
+        }
+        
+        actionsDiv.innerHTML = actionHtml;
+        container.appendChild(actionsDiv);
+
+        return container;
+    }
+
+    async function upvoteReport(reportId) {
+      loader.style.display = 'flex';
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          const nextUrl = encodeURIComponent(window.location.href);
+          window.location.href = `login.html?next=${nextUrl}`;
+          return;
+        }
+        const res = await fetch(`${API_URL}/reports/${reportId}/upvote`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Could not upvote report');
+        showNotification('Report upvoted!', 'success');
+        fetchAllReports(); 
+      } catch (error) {
+        console.error(error);
+        showNotification(error.message, 'error');
+      } finally {
+        loader.style.display = 'none';
+      }
+    }
+  </script>
+  <script src="main.js"></script>
+</body>
+</html>

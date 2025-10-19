@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .status-color-pending { color: #d97706; }
+        .status-color-in-progress { color: #2563eb; }
+        .status-color-resolved { color: #059669; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="p-4 sm:p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+            <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md">Logout</button>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-lg font-semibold text-center mb-2">Reports by Status</h3>
+                    <canvas id="statusChart"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-center mb-2">Reports by Issue Type</h3>
+                    <canvas id="issueTypeChart"></canvas>
+                </div>
+            </div>
+
+            <h2 class="text-xl font-semibold mb-4">All Submitted Reports</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Report ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issue Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Change Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportsTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+             <div id="loadingMessage" class="text-center py-4 text-gray-500">Loading reports...</div>
+        </div>
+    </div>
+
+    <script>
+    const API_URL = 'http://localhost:3000';
+    let statusChartInstance = null;
+    let issueTypeChartInstance = null;
+    const adminToken = localStorage.getItem('admin_token');
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!adminToken) {
+            window.location.href = 'admin-login.html';
+            return;
+        }
+        fetchReports();
+    });
+
+    // --- CHART.JS LOGIC (CORRECTED) ---
+    const createStatusChart = (reports) => {
+        const ctx = document.getElementById('statusChart').getContext('2d');
+        const statusCounts = reports.reduce((acc, report) => {
+            acc[report.status] = (acc[report.status] || 0) + 1;
+            return acc;
+        }, {});
+        
+        if (statusChartInstance) {
+            statusChartInstance.destroy();
+        }
+        
+        statusChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(statusCounts),
+                datasets: [{
+                    label: 'Report Status',
+                    data: Object.values(statusCounts),
+                    backgroundColor: ['rgba(245, 158, 11, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(16, 185, 129, 0.7)'],
+                    borderColor: ['rgba(245, 158, 11, 1)', 'rgba(59, 130, 246, 1)', 'rgba(16, 185, 129, 1)'],
+                    borderWidth: 1
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    };
+
+    const createIssueTypeChart = (reports) => {
+        const ctx = document.getElementById('issueTypeChart').getContext('2d');
+        const issueCounts = reports.reduce((acc, report) => {
+            acc[report.issue_type] = (acc[report.issue_type] || 0) + 1;
+            return acc;
+        }, {});
+
+        if (issueTypeChartInstance) {
+            issueTypeChartInstance.destroy();
+        }
+
+        issueTypeChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(issueCounts),
+                datasets: [{
+                    label: '# of Reports',
+                    data: Object.values(issueCounts),
+                    backgroundColor: 'rgba(79, 70, 229, 0.7)',
+                    borderColor: 'rgba(79, 70, 229, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    };
+    // --- END CHART.JS LOGIC ---
+
+    const getStatusClasses = (status) => {
+        if (status === 'Resolved') return 'status-color-resolved font-bold';
+        if (status === 'In Progress') return 'status-color-in-progress font-bold';
+        return 'status-color-pending font-bold';
+    };
+
+    const handleStatusChange = async (reportId, selectElement) => {
+        const newStatus = selectElement.value;
+        try {
+            const response = await fetch(`${API_URL}/admin/reports/${reportId}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (!response.ok) throw new Error('Failed to update status.');
+            
+            selectElement.className = `block w-full rounded-md ${getStatusClasses(newStatus)}`;
+            alert('Status updated successfully!');
+            // Refresh all data to update charts after a status change
+            fetchReports(); 
+        } catch (error) {
+            alert('Could not update status.');
+        }
+    };
+
+    const handleRejectReport = async (reportId) => {
+        const confirmation = confirm(`Are you sure you want to reject report #${reportId} and deduct 20 points from the user? This will permanently delete the report.`);
+        if (!confirmation) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/admin/reports/${reportId}/reject`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to reject report.');
+            }
+            
+            alert('Report rejected and deleted successfully.');
+            fetchReports(); 
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    };
+
+    const fetchReports = async () => {
+        const tableBody = document.getElementById('reportsTableBody');
+        const loadingMessage = document.getElementById('loadingMessage');
+        try {
+            const response = await fetch(`${API_URL}/admin/reports`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const reports = await response.json();
+            
+            if (!response.ok) throw new Error(reports.error || 'Failed to fetch reports.');
+            
+            // Call chart functions regardless of whether reports array is empty
+            createStatusChart(reports);
+            createIssueTypeChart(reports);
+
+            if (reports.length === 0) {
+                loadingMessage.textContent = 'No reports found.';
+                tableBody.innerHTML = '';
+                return;
+            }
+            
+            tableBody.innerHTML = reports.map(report => {
+                const selected = (status) => report.status === status ? 'selected' : '';
+                return `
+                    <tr>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${report.id}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">${report.issue_type}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${new Date(report.created_at).toLocaleString()}</td>
+                        <td class="px-6 py-4 text-sm">
+                            <select onchange="handleStatusChange(${report.id}, this)" class="block w-full rounded-md ${getStatusClasses(report.status)}">
+                                <option value="Pending" ${selected('Pending')}>Pending</option>
+                                <option value="In Progress" ${selected('In Progress')}>In Progress</option>
+                                <option value="Resolved" ${selected('Resolved')}>Resolved</option>
+                            </select>
+                        </td>
+                        <td class="px-6 py-4 text-sm">
+                            <a href="report-details.html?id=${report.id}" class="text-indigo-600 hover:text-indigo-900 font-medium">View</a>
+                        </td>
+                        <td class="px-6 py-4 text-sm">
+                            <button onclick="handleRejectReport(${report.id})" class="text-red-600 hover:text-red-900 font-medium">Reject</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            loadingMessage.style.display = 'none';
+        } catch (error) {
+            loadingMessage.textContent = `Error: ${error.message}`;
+        }
+    };
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('admin_token');
+        window.location.href = 'admin-login.html';
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civic Sathi - Submit Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        #reportMap { border-radius: 0.5rem; border: 1px solid #d1d5db; cursor: pointer; }
+        .notification { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; opacity: 0; visibility: hidden; transition: all 0.3s; z-index: 1000; }
+        .notification.show { opacity: 1; visibility: visible; transform: translate(-50%, -10px); }
+        .notification.success { background-color: #28a745; }
+        .notification.error { background-color: #dc3545; }
+        #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 2000; justify-content: center; align-items: center; }
+        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #6366f1; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <header id="navbar-placeholder"></header>
+    
+    <div class="flex items-center justify-center min-h-screen pt-24 pb-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center">Submit a Report</h2>
+            <form id="reportForm" class="space-y-4">
+
+                <input type="hidden" id="latitude" name="lat">
+                <input type="hidden" id="longitude" name="lon">
+                
+                <div>
+                    <label for="issueType" class="block text-sm font-medium text-gray-700">Issue Type</label>
+                    <select id="issueType" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="Pothole">Pothole</option>
+                        <option value="Garbage Dump">Garbage Dump</option>
+                        <option value="Streetlight Outage">Streetlight Outage</option>
+                        <option value="Water Leakage">Water Leakage</option>
+                        <option value="Broken Drain Cover">Broken Drain Cover</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700">Description (Optional)</label>
+                    <textarea id="description" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+
+                <div>
+                    <label for="landmark" class="block text-sm font-medium text-gray-700">Nearest Landmark</label>
+                    <input type="text" id="landmark" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Pin the Issue Location on the Map</label>
+                    <div id="reportMap" class="mt-1" style="height: 300px;"></div>
+                </div>
+
+                <div>
+                    <label for="media" class="block text-sm font-medium text-gray-700">Upload Photo (Required)</label>
+                    <input type="file" id="media" accept="image/*" capture="environment" required class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                </div>
+
+                <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Submit Report
+                </button>
+            </form>
+            <div class="mt-4 text-center">
+                 <a href="account.html" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Back to My Account</a>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="loader"><div class="spinner"></div></div>
+    <div id="notification" class="notification"></div>
+
+    <script src="main.js"></script>
+    <script>
+        const API_URL = "";
+        const loader = document.getElementById("loader");
+        const notification = document.getElementById("notification");
+        const latInput = document.getElementById("latitude");
+        const lonInput = document.getElementById("longitude");
+        let marker = null;
+
+        function showNotification(message, type = 'success') {
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            setTimeout(() => { notification.classList.remove('show'); }, 3000);
+        }
+
+        // === MAP INITIALIZATION CODE (This was missing) ===
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html?next=report.html';
+                return; 
+            }
+
+            // Set map view to Cuttack, Odisha
+            const map = L.map('reportMap').setView([20.4625, 85.8830], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Try to get user's current location to center the map
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    map.setView([position.coords.latitude, position.coords.longitude], 16);
+                });
+            }
+            
+            // Handle map clicks to pin location
+            map.on('click', (e) => {
+                const lat = e.latlng.lat;
+                const lon = e.latlng.lng;
+                latInput.value = lat.toFixed(6);
+                lonInput.value = lon.toFixed(6);
+                if (marker) {
+                    marker.setLatLng(e.latlng);
+                } else {
+                    marker = L.marker(e.latlng).addTo(map);
+                }
+                showNotification("Location pinned successfully!", "success");
+            });
+        });
+
+        // === FORM SUBMISSION HANDLER (The duplicate was removed) ===
+        document.getElementById("reportForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!latInput.value || !lonInput.value) {
+                showNotification("Please pin the location of the issue on the map.", "error");
+                return;
+            }
+            if (!document.getElementById("media").files[0]) {
+                showNotification("Please upload a media file.", "error");
+                return;
+            }
+            loader.style.display = 'flex';
+            const formData = new FormData();
+            formData.append("issue_type", document.getElementById("issueType").value);
+            formData.append("description", document.getElementById("description").value);
+            formData.append("landmark", document.getElementById("landmark").value);
+            formData.append("lat", latInput.value);
+            formData.append("lon", lonInput.value); 
+            formData.append("media", document.getElementById("media").files[0]);
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`${API_URL}/report`, { 
+                    method: "POST",
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData 
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error);
+                }
+
+                if (data.duplicate) {
+                    showNotification(data.message, "success");
+                } else {
+                    showNotification(data.message, "success");
+                }
+                
+                e.target.reset();
+                if (marker) {
+                    marker.remove();
+                    marker = null;
+                }
+                latInput.value = '';
+                lonInput.value = '';
+            } catch (error) {
+                showNotification(error.message, "error");
+            } finally {
+                loader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
