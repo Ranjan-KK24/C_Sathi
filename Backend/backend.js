@@ -26,11 +26,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- CORRECTED STATIC FILE SERVING ---
-// Path to the Frontend folder (one level up)
 const frontendPath = path.join(__dirname, '..', 'Frontend');
 app.use(express.static(frontendPath));
 
-// Path to the Admin Dashboard folder (one level up, served under /admin)
 const adminPath = path.join(__dirname, '..', 'Admin Dashboard');
 app.use('/admin', express.static(adminPath));
 // ------------------------------------
@@ -58,14 +56,101 @@ const upload = multer({
 });
 app.use('/uploads', express.static(uploadPath));
 
-// --- CORRECT DATABASE CONNECTION FOR POSTGRES ---
+// --- DATABASE CONNECTION FOR POSTGRES ---
+const isProduction = process.env.NODE_ENV === 'production';
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
+    ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 console.log("✅ Database connection pool for Postgres created successfully.");
 
+// ==================================================================
+// === AUTOMATIC DATABASE INITIALIZATION FUNCTION ===
+// ==================================================================
+async function initializeDatabase() {
+    const client = await pool.connect();
+    try {
+        const setupScript = `
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                phone VARCHAR(20) UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL DEFAULT 'user',
+                is_email_verified BOOLEAN DEFAULT FALSE,
+                email_verification_token TEXT,
+                phone_otp VARCHAR(6),
+                phone_otp_expires TIMESTAMP,
+                is_phone_verified BOOLEAN DEFAULT FALSE,
+                password_reset_token TEXT,
+                password_reset_expires TIMESTAMP,
+                points INTEGER DEFAULT 0 NOT NULL,
+                profile_photo VARCHAR(255),
+                address TEXT,
+                pincode VARCHAR(10),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
 
-// --- GAMIFICATION HELPER FUNCTIONS (with correct Postgres syntax) ---
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) REFERENCES users(user_id),
+                issue_type VARCHAR(100) NOT NULL,
+                description TEXT,
+                landmark VARCHAR(255),
+                lat DECIMAL(10, 8),
+                lon DECIMAL(11, 8),
+                media TEXT,
+                status VARCHAR(50) DEFAULT 'Pending',
+                upvotes INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS report_upvotes (
+                report_id INTEGER REFERENCES reports(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(user_id) ON DELETE CASCADE,
+                PRIMARY KEY (report_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS badges (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT NOT NULL,
+                icon_url VARCHAR(255)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_badges (
+                user_id VARCHAR(255) REFERENCES users(user_id) ON DELETE CASCADE,
+                badge_id INTEGER REFERENCES badges(id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, badge_id)
+            );
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM badges) THEN
+                    INSERT INTO badges (id, name, description, icon_url) VALUES
+                    (1, 'First Report', 'Submitted your very first report.', 'uploads/badge-first-report.png'),
+                    (2, 'Community Scout', 'Submitted 5 reports.', 'uploads/badge-5-reports.png'),
+                    (3, 'Civic Guardian', 'Submitted 25 reports.', 'uploads/badge-25-reports.png'),
+                    (4, 'Resolution Achieved', 'Your report was marked as resolved.', 'uploads/badge-resolved.png'),
+                    (5, 'Pothole Pro', 'Reported 5 potholes.', 'uploads/badge-pothole.png'),
+                    (6, 'Waste Warrior', 'Reported 5 garbage dumps.', 'uploads/badge-garbage.png');
+                END IF;
+            END $$;
+        `;
+        await client.query(setupScript);
+        console.log('✅ Database schema initialized successfully.');
+    } finally {
+        client.release();
+    }
+}
+// ==================================================================
+// === END OF FUNCTION ===
+// ==================================================================
+
+
+// --- GAMIFICATION HELPER FUNCTIONS ---
 async function awardBadge(userId, badgeId) {
     try {
         await pool.query(
@@ -155,7 +240,6 @@ app.get('/verify-email', async (req, res) => {
 
 app.post("/register", async (req, res) => {
     try {
-        // Updated: Removed security_question and security_answer
         let { name, email, phone, password } = req.body;
         if (!name || !email || !phone || !password) {
             return res.status(400).json({ error: "All fields are required." });
@@ -169,7 +253,6 @@ app.post("/register", async (req, res) => {
         const userId = `CS${Date.now()}`;
         const verificationToken = crypto.randomBytes(32).toString('hex');
         
-        // Updated: Removed security columns from the INSERT statement
         await pool.query(
             "INSERT INTO users (user_id, name, email, phone, password, role, email_verification_token) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             [userId, name, email, phone, hashedPassword, 'user', verificationToken]
@@ -441,8 +524,6 @@ app.post('/reports/:id/upvote', protect, async (req, res) => {
     }
 });
 
-// ...inside your backend.js file
-
 app.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
@@ -471,11 +552,7 @@ app.post('/forgot-password', async (req, res) => {
             html: `<p>Please click the link to reset your password:</p><a href="${resetLink}">Reset Password</a>`
         };
         
-        console.log("Attempting to send email..."); // <-- ADD THIS LINE
-
         await sgMail.send(msg);
-
-        console.log("Email sent successfully!"); // <-- ADD THIS LINE
 
         res.json({ message: "If an account with that email exists, a password reset link has been sent." });
     } catch (error) {
@@ -603,7 +680,21 @@ app.get('/leaderboard', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// ==================================================================
+// === UPDATED SERVER STARTUP LOGIC ===
+// ==================================================================
+const startServer = async () => {
+    try {
+        await initializeDatabase();
+        const PORT = process.env.PORT || 3000;
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running on http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("❌ DATABASE SETUP FAILED:", error);
+        process.exit(1); // Exit the process with an error code
+    }
+};
+
+startServer();
+// ==================================================================
