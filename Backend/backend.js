@@ -21,7 +21,10 @@ console.log("📱 Twilio client initialized.");
 const app = express();
 const saltRounds = 10;
 
-app.use(cors());
+const corsOptions = {
+    origin: 'https://civicsathi.netlify.app' // Allow requests ONLY from your Netlify site
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
